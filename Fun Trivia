@@ -1,0 +1,186 @@
+import tkinter as tk
+from tkinter import messagebox
+import requests
+import random
+from PIL import Image, ImageTk
+
+# Global variable for score
+score = 0
+
+# Function to fetch data from the API
+def fetch_data(api_url):
+    try:
+        response = requests.get(api_url)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("results", [])
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching data: {e}")
+        return []
+
+# Function to display a single question and its choices
+def display_question(index):
+    global score  # Access the global score variable
+    if index < len(questions_data):
+        # Clear the window
+        canvas.delete("all")
+        
+        # Add the background image
+        if bg_image:
+            canvas.create_image(0, 0, anchor="nw", image=bg_image)
+        
+        # Display question
+        question = questions_data[index]["question"]
+        choices = [questions_data[index]["correct_answer"]] + questions_data[index]["incorrect_answers"]
+        random.shuffle(choices)  # Shuffle choices for randomness
+        
+        canvas.create_text(400, 50, text=f"Q{index + 1}: {question}", font=("Comic Sans MS", 16, "bold"), fill="black", width=600, anchor="center")
+        
+        # Variable to hold selected answer
+        selected_answer = tk.StringVar(value="")
+
+        # Display choices as radio buttons
+        for i, choice in enumerate(choices):
+            choice_button = tk.Radiobutton(root, text=choice, variable=selected_answer, value=choice, font=("Comic Sans MS", 14), bg="#87CEEB", indicatoron=0, width=20, pady=5)
+            canvas.create_window(400, 120 + i * 50, window=choice_button)
+        
+        # Next button to check the answer and move to the next question
+        def check_answer():
+            global score  # Access the global score variable
+            if selected_answer.get() == questions_data[index]["correct_answer"]:
+                result_label.config(text="Yay! Correct! 🎉", fg="green")
+                score += 1
+            else:
+                result_label.config(text=f"Oops! The correct answer was: {questions_data[index]['correct_answer']}", fg="red")
+            next_button.config(state="normal")
+            score_label.config(text=f"Score: {score}")  # Update score display
+        
+        # Display result label
+        result_label = tk.Label(root, text="", font=("Comic Sans MS", 14), bg="#FFD700")
+        canvas.create_window(400, 300, window=result_label)
+        
+        # Add Check Answer button
+        check_button = tk.Button(root, text="Check Answer", command=check_answer, font=("Comic Sans MS", 14), bg="#32CD32", fg="white")
+        canvas.create_window(300, 400, window=check_button)
+        
+        # Add Next Question button
+        def next_question():
+            display_question(index + 1)
+        
+        next_button = tk.Button(root, text="Next Question", command=next_question, font=("Comic Sans MS", 14), bg="#1E90FF", fg="white", state="disabled")
+        canvas.create_window(500, 400, window=next_button)
+
+        # Add Go Back to Menu button
+        back_button = tk.Button(root, text="Go Back to Menu", command=go_back_to_menu, font=("Comic Sans MS", 14), bg="#FF6347", fg="white")
+        canvas.create_window(400, 500, window=back_button)
+    else:
+        # Display quiz completion message
+        canvas.delete("all")
+        if bg_image:
+            canvas.create_image(0, 0, anchor="nw", image=bg_image)
+        canvas.create_text(400, 300, text=f"Quiz Completed! 🎉 Your final score: {score}", font=("Comic Sans MS", 20, "bold"), fill="blue", anchor="center")
+        
+        # Add Go Back to Menu button
+        back_button = tk.Button(root, text="Go Back to Menu", command=go_back_to_menu, font=("Comic Sans MS", 14), bg="#FF6347", fg="white")
+        canvas.create_window(400, 400, window=back_button)
+
+# Function to go back to the main menu
+def go_back_to_menu():
+    canvas.delete("all")
+    if bg_image:
+        canvas.create_image(0, 0, anchor="nw", image=bg_image)
+
+    canvas.create_text(400, 50, text="🎈 Welcome to the Fun Trivia Quiz! 🎈", font=("Helvetica", 24, "bold"), fill="#FF4500", anchor="center")
+
+    # Recreate category selection menu
+    category_label = tk.Label(root, text="Select a category:", font=("Helvetica", 18), bg="#FFD700")
+    canvas.create_window(400, 150, window=category_label)
+
+    category_menu = tk.OptionMenu(root, category_var, "Video Games", "Science & Nature")
+    category_menu.config(font=("Helvetica", 14), bg="#87CEEB", fg="black")
+    canvas.create_window(400, 200, window=category_menu)
+
+    # Reset score display
+    score_label.config(text="Score: 0")
+    canvas.create_window(400, 250, window=score_label)
+
+    # Recreate start button
+    start_button = tk.Button(root, text="Start Quiz", command=start_quiz, font=("Helvetica", 16), bg="#32CD32", fg="white")
+    canvas.create_window(400, 350, window=start_button)
+
+# Function to start the quiz based on selected category
+def start_quiz():
+    global questions_data, score
+    score = 0  # Reset score
+    category = category_var.get()
+    if category == "Video Games":
+        api_url = "https://opentdb.com/api.php?amount=10&category=15&difficulty=medium&type=multiple"
+    elif category == "Science & Nature":
+        api_url = "https://opentdb.com/api.php?amount=10&category=16&difficulty=medium&type=multiple"
+    else:
+        messagebox.showerror("Error", "Please select a category!")
+        return
+    
+    questions_data = fetch_data(api_url)
+    if questions_data:
+        display_question(0)
+    else:
+        messagebox.showerror("Error", "Failed to fetch data. Please try again later.")
+
+# Tkinter GUI setup
+root = tk.Tk()
+root.title("Lauren Fun time trivia")
+root.geometry("800x600")
+root.resizable(False, False)
+
+# Load background image
+try:
+    bg_image_path = "images.png"  # Replace with the correct image file path
+    image = Image.open(bg_image_path)
+    image = image.resize((800, 600))  # Resize to fit the canvas
+    bg_image = ImageTk.PhotoImage(image)
+except FileNotFoundError:
+    print(f"Error: The file '{bg_image_path}' was not found.")
+    bg_image = None
+except Exception as e:
+    print(f"Error loading background image: {e}")
+    bg_image = None
+
+# Canvas for background and widgets
+canvas = tk.Canvas(root, width=800, height=600)
+canvas.pack(fill="both", expand=True)
+
+# Add the background image to the canvas
+if bg_image:
+    canvas.create_image(0, 0, anchor="nw", image=bg_image)
+else:
+    canvas.create_text(
+        400, 300,
+        text="Background image not found.\nPlease check the image path.",
+        font=("Comic Sans MS", 16, "bold"),
+        fill="red",
+        anchor="center"
+    )
+
+# Welcome screen
+canvas.create_text(400, 50, text="🎈 Welcome to the Fun Trivia Quiz! 🎈", font=("Helvetica", 24, "bold"), fill="#FF4500", anchor="center")
+
+# Category selection
+category_label = tk.Label(root, text="Select a category:", font=("Helvetica", 18), bg="#FFD700")
+canvas.create_window(400, 150, window=category_label)
+
+category_var = tk.StringVar(value="Select Category")
+category_menu = tk.OptionMenu(root, category_var, "Video Games", "Science & Nature")
+category_menu.config(font=("Helvetica", 14), bg="#87CEEB", fg="black")
+canvas.create_window(400, 200, window=category_menu)
+
+# Score display label
+score_label = tk.Label(root, text="Score: 0", font=("Helvetica", 16), bg="#FFD700")
+canvas.create_window(400, 250, window=score_label)
+
+# Start button
+start_button = tk.Button(root, text="Start Quiz", command=start_quiz, font=("Helvetica", 16), bg="#32CD32", fg="white")
+canvas.create_window(400, 350, window=start_button)
+
+# Run the Tkinter main loop
+root.mainloop()
